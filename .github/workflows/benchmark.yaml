@@ -47,8 +47,8 @@ jobs:
             echo "ERROR: failed to configure Cargo.toml"
             exit 1
           fi
-          echo $output
-          echo $output > frameworks/keyed/yew/Cargo.toml
+          echo "$output"
+          echo "$output" > frameworks/keyed/yew/Cargo.toml
 
       - name: Setup ChromeDriver
         uses: nanasess/setup-chromedriver@master
