@@ -10,24 +10,10 @@ jobs:
     name: Format & Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: ./.github/actions/setup-rust
         with:
-          toolchain: nightly
-          override: true
-          profile: minimal
-          components: rustfmt, clippy
-
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-            yew-stdweb/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: |
-            cargo-${{ runner.os }}-
+          rust-toolchain: nightly
+          rust-components: rustfmt, clippy
 
       - name: Run fmt
         uses: actions-rs/cargo@v1
@@ -55,22 +41,9 @@ jobs:
     name: Check Examples
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: ./.github/actions/setup-rust
         with:
-          toolchain: stable
-          override: true
-          profile: minimal
-
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: |
-            cargo-${{ runner.os }}-
+          rust-toolchain: stable
 
       - name: Run check
         run: |
@@ -81,23 +54,10 @@ jobs:
     name: Documentation Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: ./.github/actions/setup-rust
         with:
-          toolchain: stable
-          target: wasm32-unknown-unknown
-          override: true
-          profile: minimal
-
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: |
-            cargo-${{ runner.os }}-
+          rust-toolchain: stable
+          rust-target: wasm32-unknown-unknown
 
       - name: Run doctest
         uses: actions-rs/cargo@v1
@@ -126,27 +86,13 @@ jobs:
           - stable
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: ./.github/actions/setup-rust
         with:
-          toolchain: ${{ matrix.toolchain }}
-          target: wasm32-unknown-unknown
-          override: true
-          profile: minimal
+          rust-toolchain: ${{ matrix.toolchain }}
+          rust-target: wasm32-unknown-unknown
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-            yew-stdweb/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: |
-            cargo-${{ runner.os }}-
 
       # FIXME: Only needed because of <https://github.com/rustwasm/wasm-bindgen/issues/2261>
       - name: Install geckodriver
@@ -187,22 +133,9 @@ jobs:
           - nightly
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: ./.github/actions/setup-rust
         with:
-          toolchain: ${{ matrix.toolchain }}
-          override: true
-          profile: minimal
-
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: |
-            cargo-${{ runner.os }}-
+          rust-toolchain: ${{ matrix.toolchain }}
 
       - name: Run tests
         run: |

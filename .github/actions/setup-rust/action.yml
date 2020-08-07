@@ -1,0 +1,35 @@
+name: Set up Rust environment
+description:
+inputs:
+  rust-toolchain:
+    description: Rust toolchain to install
+    required: true
+  rust-target:
+    description: Ruts targets to install
+    required: false
+  rust-components:
+    description: Rust components to install
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ inputs.rust-toolchain }}
+        target: ${{ inputs.rust-target }}
+        override: true
+        profile: minimal
+        components: ${{ inputs.rust-components }}
+
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+          yew-stdweb/target
+        key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}
+        restore-keys: |
+          cargo-${{ runner.os }}-
