@@ -1,7 +1,7 @@
 name: Publish Examples
 on:
   push:
-    branches: [pages-test]
+    branches: [master]
 
 jobs:
   publish:
@@ -36,6 +36,7 @@ jobs:
         run: |
           output="$(pwd)/dist"
           public_url="$PUBLIC_URL/$EXAMPLES_DIR"
+
           for path in examples/*; do
               if [[ ! -d $path ]]; then
                   continue
