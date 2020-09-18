@@ -6,6 +6,10 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      PUBLIC_URL: /yew
+      EXAMPLES_DIR: examples
+
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -31,7 +35,7 @@ jobs:
       - name: Build examples
         run: |
           output="$(pwd)/dist"
-          public_url="/examples"
+          public_url="$PUBLIC_URL/$EXAMPLES_DIR"
           for path in examples/*; do
               if [[ ! -d $path ]]; then
                   continue
@@ -53,4 +57,4 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-          destination_dir: examples
+          destination_dir: ${{ env.EXAMPLES_DIR }}
