@@ -15,10 +15,20 @@ jobs:
           override: true
           profile: minimal
 
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
       - name: Install trunk
         run: cargo install trunk wasm-bindgen-cli
 
-      - name: Build
+      - name: Build examples
         run: |
           output="$(pwd)/dist"
           public_url="/examples"
@@ -39,7 +49,7 @@ jobs:
           done
 
       - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v3.7.0-8
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
