@@ -1,0 +1,41 @@
+name: Publish Examples
+on:
+  push:
+    branches: [pages-test]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          override: true
+          profile: minimal
+
+      - name: Install trunk
+        run: cargo install trunk wasm-bindgen-cli
+
+      - name: Build
+        run: |
+          output="$(pwd)/dist"
+          public_url="/examples"
+          for path in examples/*; do
+              if [[ ! -d $path ]]; then
+                  continue
+              fi
+
+              example=$(basename "$path")
+              echo "building: $example"
+              
+              (cd "$path" && trunk build --release --dist "$output/$example" --public-url "$public_url/$example")
+          done
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          destination_dir: examples
