@@ -28,8 +28,13 @@ jobs:
               fi
 
               example=$(basename "$path")
+
+              # multi_thread doesn't work yet. See <https://github.com/thedodd/trunk/issues/40>.
+              if [[ "$example" == "multi_thread" ]]; then
+                continue
+              fi
+
               echo "building: $example"
-              
               (cd "$path" && trunk build --release --dist "$output/$example" --public-url "$public_url/$example")
           done
 
