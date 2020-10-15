@@ -9,20 +9,30 @@
       "redirects": [
         {
           "source": "/",
-          "destination": "/docs/",
+          "destination": "/docs/en/intro",
           "type": 301
         },
         {
           "source": "/docs/",
-          "destination": "/docs/en/",
+          "destination": "/docs/en/intro",
+          "type": 301
+        },
+        {
+          "source": "/docs/next/",
+          "destination": "/docs/en/next/intro",
           "type": 301
         },
         {
           "source": "/docs/:lang/",
-          "destination": "/docs/:lang/intro/",
+          "destination": "/docs/:lang/intro",
           "type": 301
         },
-        // deprecated
+        {
+          "source": "/docs/:lang/next/",
+          "destination": "/docs/:lang/next/intro",
+          "type": 301
+        },
+        // for compatibility
         {
           "source": "/docs/v/zh_cn",
           "destination": "/docs/zh-CN/intro/",
