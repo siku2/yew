@@ -1,15 +1,10 @@
 use super::{HtmlChildrenTree, TagTokens};
-use crate::{props::ComponentProps, PeekValue};
-use boolinator::Boolinator;
-use proc_macro2::Span;
+use crate::props::ComponentProps;
 use quote::{quote, quote_spanned, ToTokens};
-use syn::buffer::Cursor;
-use syn::parse::{Parse, ParseStream};
-use syn::punctuated::Punctuated;
-use syn::spanned::Spanned;
 use syn::{
-    AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, Token, Type,
-    TypePath,
+    parse::{Parse, ParseStream},
+    spanned::Spanned,
+    Type,
 };
 
 pub struct HtmlComponent {
@@ -18,25 +13,9 @@ pub struct HtmlComponent {
     children: HtmlChildrenTree,
 }
 
-impl PeekValue<()> for HtmlComponent {
-    fn peek(cursor: Cursor) -> Option<()> {
-        HtmlComponentOpen::peek(cursor)
-            .or_else(|| HtmlComponentClose::peek(cursor))
-            .map(|_| ())
-    }
-}
-
 impl Parse for HtmlComponent {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        if HtmlComponentClose::peek(input.cursor()).is_some() {
-            return match input.parse::<HtmlComponentClose>() {
-                Ok(close) => Err(syn::Error::new_spanned(
-                    close.to_spanned(),
-                    "this closing tag has no corresponding opening tag",
-                )),
-                Err(err) => Err(err),
-            };
-        }
+        TagTokens::error_if_unmatched_closing_tag(input)?;
 
         let open = input.parse::<HtmlComponentOpen>()?;
         // Return early if it's a self-closing tag
@@ -56,8 +35,8 @@ impl Parse for HtmlComponent {
                     "this opening tag has no corresponding closing tag",
                 ));
             }
-            if let Some(ty) = HtmlComponentClose::peek(input.cursor()) {
-                if open.ty == ty {
+            if let Ok(close) = input.parse::<HtmlComponentClose>() {
+                if open.ty == close.ty {
                     break;
                 }
             }
@@ -130,108 +109,6 @@ impl ToTokens for HtmlComponent {
     }
 }
 
-impl HtmlComponent {
-    fn double_colon(mut cursor: Cursor) -> Option<Cursor> {
-        for _ in 0..2 {
-            let (punct, c) = cursor.punct()?;
-            (punct.as_char() == ':').as_option()?;
-            cursor = c;
-        }
-
-        Some(cursor)
-    }
-
-    /// Refer to the [`syn::parse::Parse`] implementation for [`AngleBracketedGenericArguments`].
-    fn path_arguments(mut cursor: Cursor) -> Option<(PathArguments, Cursor)> {
-        let (punct, c) = cursor.punct()?;
-        cursor = c;
-        (punct.as_char() == '<').as_option()?;
-
-        let mut args = Punctuated::new();
-
-        loop {
-            let punct = cursor.punct();
-            if let Some((punct, c)) = punct {
-                if punct.as_char() == '>' {
-                    cursor = c;
-                    break;
-                }
-            }
-
-            let (ty, c) = Self::peek_type(cursor);
-            cursor = c;
-
-            args.push_value(GenericArgument::Type(ty));
-
-            let punct = cursor.punct();
-            if let Some((punct, c)) = punct {
-                cursor = c;
-                if punct.as_char() == '>' {
-                    break;
-                } else if punct.as_char() == ',' {
-                    args.push_punct(Token![,](Span::call_site()))
-                }
-            }
-        }
-
-        Some((
-            PathArguments::AngleBracketed(AngleBracketedGenericArguments {
-                colon2_token: None,
-                lt_token: Token![<](Span::call_site()),
-                args,
-                gt_token: Token![>](Span::call_site()),
-            }),
-            cursor,
-        ))
-    }
-
-    fn peek_type(mut cursor: Cursor) -> (Type, Cursor) {
-        let mut colons_optional = true;
-        let mut leading_colon = None;
-        let mut segments = Punctuated::new();
-
-        loop {
-            let mut post_colons_cursor = cursor;
-            if let Some(c) = Self::double_colon(post_colons_cursor) {
-                if colons_optional {
-                    leading_colon = Some(Token![::](Span::call_site()));
-                }
-                post_colons_cursor = c;
-            } else if !colons_optional {
-                break;
-            }
-
-            if let Some((ident, c)) = post_colons_cursor.ident() {
-                cursor = c;
-                let arguments = if let Some((args, c)) = Self::path_arguments(cursor) {
-                    cursor = c;
-                    args
-                } else {
-                    PathArguments::None
-                };
-
-                segments.push(PathSegment { ident, arguments });
-            } else {
-                break;
-            }
-
-            // only first `::` is optional
-            colons_optional = false;
-        }
-
-        (
-            Type::Path(TypePath {
-                qself: None,
-                path: Path {
-                    leading_colon,
-                    segments,
-                },
-            }),
-            cursor,
-        )
-    }
-}
-
 struct HtmlComponentOpen {
     tag: TagTokens,
     ty: Type,
@@ -247,15 +124,6 @@ impl HtmlComponentOpen {
     }
 }
 
-impl PeekValue<Type> for HtmlComponentOpen {
-    fn peek(cursor: Cursor) -> Option<Type> {
-        let (punct, cursor) = cursor.punct()?;
-        (punct.as_char() == '<').as_option()?;
-        let (typ, _) = HtmlComponent::peek_type(cursor);
-        Some(typ)
-    }
-}
-
 impl Parse for HtmlComponentOpen {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         TagTokens::parse_start_content(input, |input, tag| {
@@ -268,36 +136,15 @@ impl Parse for HtmlComponentOpen {
 }
 
 struct HtmlComponentClose {
-    tag: TagTokens,
-    _ty: Type,
-}
-impl HtmlComponentClose {
-    fn to_spanned(&self) -> impl ToTokens {
-        self.tag.to_spanned()
-    }
+    _tag: TagTokens,
+    ty: Type,
 }
 
-impl PeekValue<Type> for HtmlComponentClose {
-    fn peek(cursor: Cursor) -> Option<Type> {
-        let (punct, cursor) = cursor.punct()?;
-        (punct.as_char() == '<').as_option()?;
-
-        let (punct, cursor) = cursor.punct()?;
-        (punct.as_char() == '/').as_option()?;
-
-        let (typ, cursor) = HtmlComponent::peek_type(cursor);
-
-        let (punct, _) = cursor.punct()?;
-        (punct.as_char() == '>').as_option()?;
-
-        Some(typ)
-    }
-}
 impl Parse for HtmlComponentClose {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         TagTokens::parse_end_content(input, |input, tag| {
             let ty = input.parse()?;
-            Ok(Self { tag, _ty: ty })
+            Ok(Self { _tag: tag, ty })
         })
     }
 }

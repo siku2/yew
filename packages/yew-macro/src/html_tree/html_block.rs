@@ -1,10 +1,10 @@
 use super::{HtmlIterable, HtmlNode, ToNodeIterator};
-use crate::PeekValue;
-use proc_macro2::Delimiter;
 use quote::{quote, quote_spanned, ToTokens};
-use syn::buffer::Cursor;
-use syn::parse::{Parse, ParseStream};
-use syn::{braced, token};
+use syn::{
+    braced,
+    parse::{Parse, ParseStream},
+    token,
+};
 
 pub struct HtmlBlock {
     content: BlockContent,
@@ -16,17 +16,11 @@ enum BlockContent {
     Iterable(Box<HtmlIterable>),
 }
 
-impl PeekValue<()> for HtmlBlock {
-    fn peek(cursor: Cursor) -> Option<()> {
-        cursor.group(Delimiter::Brace).map(|_| ())
-    }
-}
-
 impl Parse for HtmlBlock {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let content;
         let brace = braced!(content in input);
-        let content = if HtmlIterable::peek(content.cursor()).is_some() {
+        let content = if HtmlIterable::peek_for_token(&input) {
             BlockContent::Iterable(Box::new(content.parse()?))
         } else {
             BlockContent::Node(Box::new(content.parse()?))

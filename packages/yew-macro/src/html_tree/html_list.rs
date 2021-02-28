@@ -1,11 +1,11 @@
-use super::{html_dashed_name::HtmlDashedName, HtmlChildrenTree, TagTokens};
-use crate::{props::Prop, Peek, PeekValue};
-use boolinator::Boolinator;
+use super::{HtmlChildrenTree, TagTokens};
+use crate::props::Prop;
 use quote::{quote, quote_spanned, ToTokens};
-use syn::buffer::Cursor;
-use syn::parse::{Parse, ParseStream};
-use syn::spanned::Spanned;
-use syn::Expr;
+use syn::{
+    parse::{Parse, ParseStream},
+    spanned::Spanned,
+    Expr, Token,
+};
 
 pub struct HtmlList {
     open: HtmlListOpen,
@@ -13,29 +13,13 @@ pub struct HtmlList {
     close: HtmlListClose,
 }
 
-impl PeekValue<()> for HtmlList {
-    fn peek(cursor: Cursor) -> Option<()> {
-        HtmlListOpen::peek(cursor)
-            .or_else(|| HtmlListClose::peek(cursor))
-            .map(|_| ())
-    }
-}
-
 impl Parse for HtmlList {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        if HtmlListClose::peek(input.cursor()).is_some() {
-            return match input.parse::<HtmlListClose>() {
-                Ok(close) => Err(syn::Error::new_spanned(
-                    close.to_spanned(),
-                    "this closing fragment has no corresponding opening fragment",
-                )),
-                Err(err) => Err(err),
-            };
-        }
+        TagTokens::error_if_unmatched_closing_tag(input)?;
 
         let open = input.parse::<HtmlListOpen>()?;
         let mut children = HtmlChildrenTree::new();
-        while HtmlListClose::peek(input.cursor()).is_none() {
+        while HtmlListClose::peek_close(&input) {
             children.parse_child(input)?;
             if input.is_empty() {
                 return Err(syn::Error::new_spanned(
@@ -95,21 +79,6 @@ impl HtmlListOpen {
     }
 }
 
-impl PeekValue<()> for HtmlListOpen {
-    fn peek(cursor: Cursor) -> Option<()> {
-        let (punct, cursor) = cursor.punct()?;
-        (punct.as_char() == '<').as_option()?;
-        // make sure it's either a property (key=value) or it's immediately closed
-        if let Some((_, cursor)) = HtmlDashedName::peek(cursor) {
-            let (punct, _) = cursor.punct()?;
-            (punct.as_char() == '=' || punct.as_char() == '?').as_option()
-        } else {
-            let (punct, _) = cursor.punct()?;
-            (punct.as_char() == '>').as_option()
-        }
-    }
-}
-
 impl Parse for HtmlListOpen {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         TagTokens::parse_start_content(input, |input, tag| {
@@ -149,22 +118,19 @@ impl Parse for HtmlListProps {
 }
 
 struct HtmlListClose(TagTokens);
+
+impl HtmlListClose {
+    fn peek_close(input: ParseStream) -> bool {
+        input.peek2(Token![/])
+    }
+}
+
 impl HtmlListClose {
     fn to_spanned(&self) -> impl ToTokens {
         self.0.to_spanned()
     }
 }
-impl PeekValue<()> for HtmlListClose {
-    fn peek(cursor: Cursor) -> Option<()> {
-        let (punct, cursor) = cursor.punct()?;
-        (punct.as_char() == '<').as_option()?;
-        let (punct, cursor) = cursor.punct()?;
-        (punct.as_char() == '/').as_option()?;
 
-        let (punct, _) = cursor.punct()?;
-        (punct.as_char() == '>').as_option()
-    }
-}
 impl Parse for HtmlListClose {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         TagTokens::parse_end_content(input, |input, tag| {

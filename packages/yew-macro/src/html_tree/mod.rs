@@ -1,10 +1,10 @@
-use crate::PeekValue;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
-use syn::ext::IdentExt;
-use syn::parse::{Parse, ParseStream, Result};
-use syn::spanned::Spanned;
-use syn::Token;
+use syn::{
+    ext::IdentExt,
+    parse::{Parse, ParseStream, Result},
+};
+use syn::{spanned::Spanned, Token};
 
 mod html_block;
 mod html_component;
@@ -129,7 +129,7 @@ impl Parse for HtmlRoot {
     fn parse(input: ParseStream) -> Result<Self> {
         let html_root = if HtmlTree::peek_html_type(input).is_some() {
             Self::Tree(input.parse()?)
-        } else if HtmlIterable::peek(input.cursor()).is_some() {
+        } else if HtmlIterable::peek_for_token(&input) {
             Self::Iterable(Box::new(input.parse()?))
         } else {
             Self::Node(Box::new(input.parse()?))

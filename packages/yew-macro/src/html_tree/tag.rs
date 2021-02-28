@@ -147,4 +147,18 @@ impl TagTokens {
         let Self { lt, gt, .. } = self;
         quote! {#lt#gt}
     }
+
+    /// Return an error if the parse stream is pointing at a closing tag.
+    pub fn error_if_unmatched_closing_tag(input: ParseStream) -> syn::Result<()> {
+        let assume_close_tag = input.peek(Token![<]) && input.peek2(Token![/]);
+        if !assume_close_tag {
+            return Ok(());
+        }
+
+        let (tag_tokens, _) = Self::parse_end(input)?;
+        Err(syn::Error::new_spanned(
+            tag_tokens.to_spanned(),
+            "this closing tag has no corresponding opening tag",
+        ))
+    }
 }

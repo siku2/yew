@@ -65,16 +65,7 @@ use derive_props::DerivePropsInput;
 use html_tree::{HtmlRoot, HtmlRootVNode};
 use proc_macro::TokenStream;
 use quote::ToTokens;
-use syn::buffer::Cursor;
 use syn::parse_macro_input;
-
-trait Peek<'a, T> {
-    fn peek(cursor: Cursor<'a>) -> Option<(T, Cursor<'a>)>;
-}
-
-trait PeekValue<T> {
-    fn peek(cursor: Cursor) -> Option<T>;
-}
 
 fn non_capitalized_ascii(string: &str) -> bool {
     if !string.is_ascii() {

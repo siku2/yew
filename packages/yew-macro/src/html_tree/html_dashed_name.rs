@@ -1,13 +1,13 @@
-use crate::{non_capitalized_ascii, stringify::Stringify, Peek};
-use boolinator::Boolinator;
-use proc_macro2::Ident;
-use proc_macro2::{Span, TokenStream};
+use crate::stringify::Stringify;
+use proc_macro2::{Ident, TokenStream};
 use quote::{quote, ToTokens};
 use std::fmt;
-use syn::buffer::Cursor;
-use syn::ext::IdentExt;
-use syn::parse::{Parse, ParseStream};
-use syn::{spanned::Spanned, LitStr, Token};
+use syn::{
+    ext::IdentExt,
+    parse::{Parse, ParseStream},
+    spanned::Spanned,
+    LitStr, Token,
+};
 
 #[derive(Clone, PartialEq)]
 pub struct HtmlDashedName {
@@ -34,29 +34,6 @@ impl fmt::Display for HtmlDashedName {
             write!(f, "-{}", ident)?;
         }
         Ok(())
-    }
-}
-
-impl Peek<'_, Self> for HtmlDashedName {
-    fn peek(cursor: Cursor) -> Option<(Self, Cursor)> {
-        let (name, cursor) = cursor.ident()?;
-        non_capitalized_ascii(&name.to_string()).as_option()?;
-
-        let mut extended = Vec::new();
-        let mut cursor = cursor;
-        loop {
-            if let Some((punct, p_cursor)) = cursor.punct() {
-                if punct.as_char() == '-' {
-                    let (ident, i_cursor) = p_cursor.ident()?;
-                    cursor = i_cursor;
-                    extended.push((Token![-](Span::call_site()), ident));
-                    continue;
-                }
-            }
-            break;
-        }
-
-        Some((HtmlDashedName { name, extended }, cursor))
     }
 }
 

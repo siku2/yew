@@ -1,14 +1,15 @@
 use super::{HtmlChildrenTree, HtmlDashedName, TagTokens};
-use crate::props::{ClassesForm, ElementProps, Prop};
-use crate::stringify::Stringify;
-use crate::{non_capitalized_ascii, stringify, Peek, PeekValue};
-use boolinator::Boolinator;
+use crate::{
+    props::{ClassesForm, ElementProps, Prop},
+    stringify::{self, Stringify},
+};
 use proc_macro2::{Delimiter, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
-use syn::buffer::Cursor;
-use syn::parse::{Parse, ParseStream};
-use syn::spanned::Spanned;
-use syn::{Block, Ident, Token};
+use syn::{
+    parse::{Parse, ParseStream},
+    spanned::Spanned,
+    Block, Ident, Token,
+};
 
 pub struct HtmlElement {
     name: TagName,
@@ -16,25 +17,9 @@ pub struct HtmlElement {
     children: HtmlChildrenTree,
 }
 
-impl PeekValue<()> for HtmlElement {
-    fn peek(cursor: Cursor) -> Option<()> {
-        HtmlElementOpen::peek(cursor)
-            .or_else(|| HtmlElementClose::peek(cursor))
-            .map(|_| ())
-    }
-}
-
 impl Parse for HtmlElement {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        if HtmlElementClose::peek(input.cursor()).is_some() {
-            return match input.parse::<HtmlElementClose>() {
-                Ok(close) => Err(syn::Error::new_spanned(
-                    close.to_spanned(),
-                    "this closing tag has no corresponding opening tag",
-                )),
-                Err(err) => Err(err),
-            };
-        }
+        TagTokens::error_if_unmatched_closing_tag(input)?;
 
         let open = input.parse::<HtmlElementOpen>()?;
         // Return early if it's a self-closing tag
@@ -69,8 +54,8 @@ impl Parse for HtmlElement {
                     "this opening tag has no corresponding closing tag",
                 ));
             }
-            if let Some(close_key) = HtmlElementClose::peek(input.cursor()) {
-                if open_key == close_key {
+            if let Ok(close) = input.parse::<HtmlElementClose>() {
+                if open_key == close.name.get_key() {
                     break;
                 }
             }
@@ -417,21 +402,6 @@ struct DynamicName {
     expr: Option<Block>,
 }
 
-impl Peek<'_, ()> for DynamicName {
-    fn peek(cursor: Cursor) -> Option<((), Cursor)> {
-        let (punct, cursor) = cursor.punct()?;
-        (punct.as_char() == '@').as_option()?;
-
-        // move cursor past block if there is one
-        let cursor = cursor
-            .group(Delimiter::Brace)
-            .map(|(_, _, cursor)| cursor)
-            .unwrap_or(cursor);
-
-        Some(((), cursor))
-    }
-}
-
 impl Parse for DynamicName {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let at = input.parse()?;
@@ -473,19 +443,9 @@ impl TagName {
     }
 }
 
-impl Peek<'_, TagKey> for TagName {
-    fn peek(cursor: Cursor) -> Option<(TagKey, Cursor)> {
-        if let Some((_, cursor)) = DynamicName::peek(cursor) {
-            Some((TagKey::Expr, cursor))
-        } else {
-            HtmlDashedName::peek(cursor).map(|(name, cursor)| (TagKey::Lit(name), cursor))
-        }
-    }
-}
-
 impl Parse for TagName {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        if DynamicName::peek(input.cursor()).is_some() {
+        if input.peek(Token![@]) {
             DynamicName::parse(input).map(Self::Expr)
         } else {
             HtmlDashedName::parse(input).map(Self::Lit)
@@ -507,6 +467,7 @@ struct HtmlElementOpen {
     name: TagName,
     props: ElementProps,
 }
+
 impl HtmlElementOpen {
     fn is_self_closing(&self) -> bool {
         self.tag.div.is_some()
@@ -514,27 +475,6 @@ impl HtmlElementOpen {
 
     fn to_spanned(&self) -> impl ToTokens {
         self.tag.to_spanned()
-    }
-}
-
-impl PeekValue<TagKey> for HtmlElementOpen {
-    fn peek(cursor: Cursor) -> Option<TagKey> {
-        let (punct, cursor) = cursor.punct()?;
-        (punct.as_char() == '<').as_option()?;
-
-        let (tag_key, cursor) = TagName::peek(cursor)?;
-        if let TagKey::Lit(name) = &tag_key {
-            // Avoid parsing `<key=[...]>` as an element. It needs to be parsed as an `HtmlList`.
-            if name.to_string() == "key" {
-                let (punct, _) = cursor.punct()?;
-                // ... unless it isn't followed by a '='. `<key></key>` is a valid element!
-                (punct.as_char() != '=').as_option()?;
-            } else {
-                non_capitalized_ascii(&name.to_string()).as_option()?;
-            }
-        }
-
-        Some(tag_key)
     }
 }
 
@@ -573,33 +513,8 @@ impl Parse for HtmlElementOpen {
 }
 
 struct HtmlElementClose {
-    tag: TagTokens,
-    _name: TagName,
-}
-impl HtmlElementClose {
-    fn to_spanned(&self) -> impl ToTokens {
-        self.tag.to_spanned()
-    }
-}
-
-impl PeekValue<TagKey> for HtmlElementClose {
-    fn peek(cursor: Cursor) -> Option<TagKey> {
-        let (punct, cursor) = cursor.punct()?;
-        (punct.as_char() == '<').as_option()?;
-
-        let (punct, cursor) = cursor.punct()?;
-        (punct.as_char() == '/').as_option()?;
-
-        let (tag_key, cursor) = TagName::peek(cursor)?;
-        if let TagKey::Lit(name) = &tag_key {
-            non_capitalized_ascii(&name.to_string()).as_option()?;
-        }
-
-        let (punct, _) = cursor.punct()?;
-        (punct.as_char() == '>').as_option()?;
-
-        Some(tag_key)
-    }
+    _tag: TagTokens,
+    name: TagName,
 }
 
 impl Parse for HtmlElementClose {
@@ -616,7 +531,7 @@ impl Parse for HtmlElementClose {
                 }
             }
 
-            Ok(Self { tag, _name: name })
+            Ok(Self { _tag: tag, name })
         })
     }
 }
