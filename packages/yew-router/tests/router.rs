@@ -67,8 +67,7 @@ fn component() -> Html {
     });
 
     html! {
-        <Router<Routes> render=switch>
-        </Router<Routes>>
+        <Router<Routes> render=switch />
     }
 }
 

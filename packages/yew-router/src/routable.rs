@@ -24,3 +24,44 @@ pub trait Routable: Sized {
     /// Match a route based on the path
     fn recognize(pathname: &str) -> Option<Self>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq, Routable)]
+    enum TestRoute {
+        // TODO should be rejected?
+        #[at("a")]
+        A,
+        #[at("/b")]
+        B,
+        // TODO also reject this
+        #[at("/c/")]
+        C,
+        // TODO the macro should also reject paths containing `?` and `#` as those can never possibly match
+    }
+
+    #[test]
+    fn test_routes() {
+        assert_eq!(TestRoute::routes(), vec!["a", "/b", "/c/"]);
+    }
+
+    #[test]
+    fn test_recognize() {
+        assert_eq!(TestRoute::recognize("a"), Some(TestRoute::A));
+        assert_eq!(TestRoute::recognize("a/"), Some(TestRoute::A));
+        assert_eq!(TestRoute::recognize("/a"), Some(TestRoute::A));
+        assert_eq!(TestRoute::recognize("/a/"), Some(TestRoute::A));
+
+        assert_eq!(TestRoute::recognize("b"), Some(TestRoute::B));
+        assert_eq!(TestRoute::recognize("b/"), Some(TestRoute::B));
+        assert_eq!(TestRoute::recognize("/b"), Some(TestRoute::B));
+        assert_eq!(TestRoute::recognize("/b/"), Some(TestRoute::B));
+
+        assert_eq!(TestRoute::recognize("c"), Some(TestRoute::C));
+        assert_eq!(TestRoute::recognize("c/"), Some(TestRoute::C));
+        assert_eq!(TestRoute::recognize("/c"), Some(TestRoute::C));
+        assert_eq!(TestRoute::recognize("/c/"), Some(TestRoute::C));
+    }
+}

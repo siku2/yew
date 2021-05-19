@@ -1,14 +1,14 @@
-use crate::utils::build_path_with_base;
 use crate::Routable;
 use gloo::events::EventListener;
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::JsValue;
+use std::borrow::Cow;
+use wasm_bindgen::{JsCast, JsValue};
 use web_sys::Event;
 use yew::Callback;
 
 /// Navigate to a specific route.
 pub fn push_route(route: impl Routable) {
-    push_impl(route.to_path())
+    push_impl(&route.to_path())
 }
 
 /// Navigate to a specific route with query parameters.
@@ -27,22 +27,17 @@ where
         url.push_str(&format!("?{}", query));
     }
 
-    push_impl(url);
+    push_impl(&url);
 
     Ok(())
 }
 
-fn push_impl(url: String) {
+fn push_impl(url: &str) {
     let history = yew::utils::window().history().expect("no history");
 
-    let path = build_path_with_base(&url);
-    // using this little trick to avoid allocating `/` string
-    let mut path = path.as_str();
-    if path.is_empty() {
-        path = "/";
-    }
+    let path = build_path_with_base_prefix(url);
     history
-        .push_state_with_url(&JsValue::NULL, "", Some(path))
+        .push_state_with_url(&JsValue::NULL, "", Some(&path))
         .expect("push history");
     let event = Event::new("popstate").unwrap();
     yew::utils::window()
@@ -60,7 +55,11 @@ where
 
 pub fn current_route<R: Routable>() -> Option<R> {
     let pathname = yew::utils::window().location().pathname().unwrap();
-    R::recognize(&pathname)
+    let relative_path = base_path_prefix()
+        .and_then(|prefix| pathname.strip_prefix(&prefix))
+        .unwrap_or(&pathname);
+
+    R::recognize(&relative_path)
 }
 
 /// Handle for the router's path event listener
@@ -82,4 +81,29 @@ where
     });
 
     RouteListener { listener }
+}
+
+fn base_path_prefix() -> Option<String> {
+    let base_element: web_sys::HtmlBaseElement = yew::utils::document()
+        .query_selector("base[href]")
+        .ok()??
+        .unchecked_into();
+    let base_path = web_sys::Url::new(&base_element.href()).ok()?.pathname();
+
+    base_path.strip_suffix('/').and_then(|path| {
+        if path.is_empty() {
+            None
+        } else {
+            Some(path.to_owned())
+        }
+    })
+}
+
+fn build_path_with_base_prefix(path: &str) -> Cow<str> {
+    if let Some(mut prefix) = base_path_prefix() {
+        prefix.push_str(path);
+        Cow::Owned(prefix)
+    } else {
+        Cow::Borrowed(path)
+    }
 }
